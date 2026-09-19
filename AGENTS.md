@@ -18,6 +18,10 @@ This is a small Python project used to test autonomous Codex workflows.
 - Every behavior change must have automated tests.
 - Run the test suite after making changes.
 
+## Tests
+
+- To execute tests on this environment use `python3 -m pytest`
+
 ## Definition of Done
 
 A task is complete only when:
