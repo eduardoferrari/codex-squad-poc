@@ -39,7 +39,7 @@ try {
 
     Write-Host "Loading GitHub issue #$IssueNumber..."
 
-    $issue = gh issue view $IssueNumber --json number, title, body, state | ConvertFrom-Json
+    $issue = gh issue view $IssueNumber --json number,title,body,state | ConvertFrom-Json
 
     if ($issue.state -ne "OPEN") {
         throw "Issue #$IssueNumber is not open."
