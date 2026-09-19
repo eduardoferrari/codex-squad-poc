@@ -1,4 +1,6 @@
-from src.calculator import add, multiply, subtract
+import pytest
+
+from src.calculator import add, divide, multiply, subtract
 
 
 def test_add():
@@ -21,3 +23,12 @@ def test_subtract():
 def test_subtract_with_zero_and_negative_number():
     assert subtract(0, 10) == -10
     assert subtract(-2, 3) == -5
+
+
+def test_divide():
+    assert divide(6, 3) == 2
+
+
+def test_divide_by_zero_raises_zero_division_error():
+    with pytest.raises(ZeroDivisionError):
+        divide(1, 0)
