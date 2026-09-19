@@ -16,11 +16,7 @@ This is a small Python project used to test autonomous Codex workflows.
 - Follow the existing project structure.
 - Do not introduce unnecessary dependencies.
 - Every behavior change must have automated tests.
-- Run the test suite after making changes.
-
-## Tests
-
-- To execute tests on this environment use `python3 -m pytest`
+- Run the test suite after making changes using this command `python3 -m pytest`
 
 ## Definition of Done
 

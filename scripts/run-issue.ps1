@@ -39,7 +39,7 @@ try {
 
     Write-Host "Loading GitHub issue #$IssueNumber..."
 
-    $issue = gh issue view $IssueNumber --json number,title,body,state | ConvertFrom-Json
+    $issue = gh issue view $IssueNumber --json number, title, body, state | ConvertFrom-Json
 
     if ($issue.state -ne "OPEN") {
         throw "Issue #$IssueNumber is not open."
@@ -133,7 +133,7 @@ Requirements:
     Write-Host "========================================"
     Write-Host ""
 
-    pytest
+    python3 -m pytest
 
     if ($LASTEXITCODE -ne 0) {
         throw "Test suite failed with exit code $LASTEXITCODE."
