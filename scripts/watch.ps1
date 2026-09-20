@@ -11,6 +11,23 @@ Write-Host ""
 Write-Host "Polling interval: $IntervalSeconds seconds"
 Write-Host ""
 
+function Remove-GitHubIssueLabel {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$IssueNumber,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Label
+    )
+
+    try {
+        gh issue edit $IssueNumber --remove-label $Label
+    }
+    catch {
+        Write-Warning "Failed to remove label '$Label' from issue #$($IssueNumber): $($_.Exception.Message)"
+    }
+}
+
 while ($true) {
 
     Write-Host ""
@@ -38,6 +55,8 @@ while ($true) {
 
                 & "$PSScriptRoot\run-issue.ps1" $issue.number
 
+                Remove-GitHubIssueLabel -IssueNumber $issue.number -Label "status:in-progress"
+
                 if ($LASTEXITCODE -eq 0) {
                     Write-Host "Issue #$($issue.number) completed successfully."
                 }
@@ -54,15 +73,7 @@ while ($true) {
         Write-Host $_.Exception.Message
     }
     finally {
-        try {
-                Remove-GitHubIssueLabel `
-                    -IssueNumber $issueNumber `
-                    -Label "queue" `
-                    -ErrorAction Stop
-            }
-        catch {
-                Write-Warning "Could not remove queue label from issue #$issueNumber : $($_.Exception.Message)"
-        }
+        Remove-GitHubIssueLabel -IssueNumber $issue.number -Label "status:queued"
     }
 
     Write-Host ""
