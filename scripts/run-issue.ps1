@@ -91,17 +91,6 @@ try {
     git checkout -b $branchName
 
     # --------------------------------------------------
-    # Update issue status
-    # --------------------------------------------------
-
-    Write-Host "Marking issue as in progress..."
-
-    gh issue edit $IssueNumber `
-        --repo $Repository `
-        --remove-label "status:queued" `
-        --add-label "status:in-progress"
-
-    # --------------------------------------------------
     # Codex prompt
     # --------------------------------------------------
 

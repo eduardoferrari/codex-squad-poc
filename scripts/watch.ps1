@@ -53,112 +53,188 @@ New-Item `
     -Path $logRoot | Out-Null
 
 # --------------------------------------------------
+# Track running workers
+# --------------------------------------------------
+
+$workers = @()
+
+# --------------------------------------------------
 # Main loop
 # --------------------------------------------------
 
 while ($true) {
 
     Write-Host ""
-    Write-Host "[$(Get-Date)] Checking repositories..."
+    Write-Host "[$(Get-Date)] Watcher cycle"
+
+    # --------------------------------------------------
+    # Remove completed workers
+    # --------------------------------------------------
+
+    $completedWorkers = @()
+
+    foreach ($worker in $workers) {
+
+        if ($worker.Process.HasExited) {
+
+            Write-Host ""
+            Write-Host "Worker finished:"
+            Write-Host "Repository: $($worker.Repository)"
+            Write-Host "Issue: #$($worker.IssueNumber)"
+            Write-Host "Exit code: $($worker.Process.ExitCode)"
+
+            $completedWorkers += $worker
+        }
+    }
+
+    foreach ($worker in $completedWorkers) {
+        $workers = $workers | Where-Object {
+            $_ -ne $worker
+        }
+    }
+
+    # --------------------------------------------------
+    # Current capacity
+    # --------------------------------------------------
+
+    $runningCount = $workers.Count
+    $availableSlots = $maxConcurrency - $runningCount
+
+    Write-Host ""
+    Write-Host "Running workers: $runningCount / $maxConcurrency"
+
+    if ($availableSlots -le 0) {
+
+        Write-Host "No worker slots available."
+        Start-Sleep -Seconds $pollIntervalSeconds
+        continue
+    }
+
+    # --------------------------------------------------
+    # Discover queued issues
+    # --------------------------------------------------
+
+    $queuedIssues = @()
+
+    foreach ($repository in $config.repositories) {
+
+        Write-Host ""
+        Write-Host "Checking $($repository.name)..."
+
+        $issues = gh issue list `
+            --repo $repository.repository `
+            --state open `
+            --label "status:queued" `
+            --json number,title `
+            --limit 10 |
+            ConvertFrom-Json
+
+        foreach ($issue in $issues) {
+
+            $queuedIssues += [PSCustomObject]@{
+                RepositoryName = $repository.name
+                Repository     = $repository.repository
+                IssueNumber    = $issue.number
+                Title          = $issue.title
+            }
+        }
+    }
+
+    if ($queuedIssues.Count -eq 0) {
+
+        Write-Host ""
+        Write-Host "No queued issues found."
+
+        Start-Sleep -Seconds $pollIntervalSeconds
+        continue
+    }
+
+    # --------------------------------------------------
+    # Start workers
+    # --------------------------------------------------
+
+    $issuesToProcess = $queuedIssues |
+        Select-Object -First $availableSlots
+
+foreach ($issue in $issuesToProcess) {
+
+    Write-Host ""
+    Write-Host "Reserving issue:"
+    Write-Host "Repository: $($issue.Repository)"
+    Write-Host "Issue: #$($issue.IssueNumber)"
 
     try {
 
-        $queuedIssues = @()
-
         # --------------------------------------------------
-        # Discover queued issues
+        # Reserve issue
         # --------------------------------------------------
 
-        foreach ($repository in $config.repositories) {
+        gh issue edit $issue.IssueNumber `
+            --repo $issue.Repository `
+            --remove-label "status:queued" `
+            --add-label "status:in-progress"
 
-            Write-Host ""
-            Write-Host "Checking $($repository.name)..."
-
-            $issues = gh issue list `
-                --repo $repository.repository `
-                --state open `
-                --label "status:queued" `
-                --json number,title `
-                --limit 10 |
-                ConvertFrom-Json
-
-            foreach ($issue in $issues) {
-
-                $queuedIssues += [PSCustomObject]@{
-                    RepositoryName = $repository.name
-                    Repository     = $repository.repository
-                    IssueNumber    = $issue.number
-                    Title          = $issue.title
-                }
-            }
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to reserve issue."
         }
 
+        Write-Host "Issue reserved."
+
         # --------------------------------------------------
-        # Nothing to process
+        # Start worker
         # --------------------------------------------------
 
-        if ($queuedIssues.Count -eq 0) {
+        $arguments = @(
+            "-NoProfile"
+            "-ExecutionPolicy"
+            "Bypass"
+            "-File"
+            "`"$PSScriptRoot\run-issue.ps1`""
+            "-Repository"
+            "`"$($issue.Repository)`""
+            "-IssueNumber"
+            "$($issue.IssueNumber)"
+            "-WorkspaceRoot"
+            "`"$workspaceRoot`""
+            "-LogRoot"
+            "`"$logRoot`""
+        )
 
-            Write-Host ""
-            Write-Host "No queued issues found."
-        }
-        else {
+        $process = Start-Process `
+            -FilePath "pwsh.exe" `
+            -ArgumentList $arguments `
+            -PassThru
 
-            Write-Host ""
-            Write-Host "Queued issues found: $($queuedIssues.Count)"
-
-            foreach ($issue in $queuedIssues) {
-
-                Write-Host ""
-                Write-Host "#$($issue.IssueNumber) - $($issue.Title)"
-                Write-Host "Repository: $($issue.Repository)"
-            }
-
-            # --------------------------------------------------
-            # Limit concurrency
-            # --------------------------------------------------
-
-            $availableSlots = $maxConcurrency
-
-            $issuesToProcess = $queuedIssues |
-                Select-Object -First $availableSlots
-
-            foreach ($issue in $issuesToProcess) {
-
-                Write-Host ""
-                Write-Host "Starting worker:"
-                Write-Host "Repository: $($issue.Repository)"
-                Write-Host "Issue: #$($issue.IssueNumber)"
-
-                & "$PSScriptRoot\run-issue.ps1" `
-                    -Repository $issue.Repository `
-                    -IssueNumber $issue.IssueNumber `
-                    -WorkspaceRoot $workspaceRoot `
-                    -LogRoot $logRoot
-
-                if ($LASTEXITCODE -eq 0) {
-
-                    Write-Host ""
-                    Write-Host "Worker completed successfully."
-                }
-                else {
-
-                    Write-Host ""
-                    Write-Host "Worker failed."
-                }
-            }
+        $workers += [PSCustomObject]@{
+            Process      = $process
+            Repository   = $issue.Repository
+            IssueNumber  = $issue.IssueNumber
+            Title        = $issue.Title
+            StartedAt    = Get-Date
         }
 
+        Write-Host "Worker PID: $($process.Id)"
     }
     catch {
 
         Write-Host ""
-        Write-Host "Watcher error:"
+        Write-Host "Failed to start worker:"
         Write-Host $_.Exception.Message
-    }
 
-    Write-Host ""
-    Write-Host "Sleeping for $pollIntervalSeconds seconds..."
+        try {
+
+            gh issue edit $issue.IssueNumber `
+                --repo $issue.Repository `
+                --remove-label "status:in-progress" `
+                --add-label "status:queued"
+
+        }
+        catch {
+
+            Write-Host "Failed to restore queued status."
+        }
+    }
+}
 
     Start-Sleep -Seconds $pollIntervalSeconds
 }
