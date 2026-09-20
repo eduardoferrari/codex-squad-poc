@@ -1,0 +1,12 @@
+{
+  "pollIntervalSeconds": 10,
+  "maxConcurrency": 1,
+  "workspaceRoot": "C:\\CodexAgent\\workspaces",
+  "logRoot": "C:\\CodexAgent\\logs",
+  "repositories": [
+    {
+      "name": "codex-squad-poc",
+      "repository": "eduardoferrari/codex-squad-poc"
+    }
+  ]
+}

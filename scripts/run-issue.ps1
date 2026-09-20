@@ -1,45 +1,53 @@
 param(
     [Parameter(Mandatory = $true)]
-    [int]$IssueNumber
+    [string]$Repository,
+
+    [Parameter(Mandatory = $true)]
+    [int]$IssueNumber,
+
+    [Parameter(Mandatory = $true)]
+    [string]$WorkspaceRoot,
+
+    [Parameter(Mandatory = $true)]
+    [string]$LogRoot
 )
 
 $ErrorActionPreference = "Stop"
 
-$repoRoot = git rev-parse --show-toplevel
-$logsDirectory = Join-Path $repoRoot "logs"
-
-New-Item -ItemType Directory -Force -Path $logsDirectory | Out-Null
-
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$logFile = Join-Path $logsDirectory "issue-$IssueNumber-$timestamp.log"
+
+$normalizedRepoName = $Repository.Replace("/", "_")
+
+$logDirectory = Join-Path $LogRoot $normalizedRepoName
+$logFile = Join-Path $logDirectory "issue-$IssueNumber-$timestamp.log"
+
+$workspaceName = "$normalizedRepoName-issue-$IssueNumber-$timestamp"
+$workspacePath = Join-Path $WorkspaceRoot $workspaceName
+
+New-Item -ItemType Directory -Force -Path $workspacePath | Out-Null
+New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
 
 Start-Transcript -Path $logFile
 
 try {
+
     Write-Host "========================================"
     Write-Host "Codex Issue Worker"
+    Write-Host "Repository: $Repository"
     Write-Host "Issue: #$IssueNumber"
-    Write-Host "Started: $(Get-Date)"
+    Write-Host "Workspace: $workspacePath"
     Write-Host "========================================"
     Write-Host ""
-
-    # --------------------------------------------------
-    # Validate working tree
-    # --------------------------------------------------
-
-    $status = git status --porcelain
-
-    if ($status) {
-        throw "Working tree is not clean. Commit or discard existing changes before running the worker."
-    }
 
     # --------------------------------------------------
     # Load issue
     # --------------------------------------------------
 
-    Write-Host "Loading GitHub issue #$IssueNumber..."
+    Write-Host "Loading GitHub issue..."
 
-    $issue = gh issue view $IssueNumber --json number,title,body,state | ConvertFrom-Json
+    $issue = gh issue view $IssueNumber `
+        --repo $Repository `
+        --json number,title,body,state | ConvertFrom-Json
 
     if ($issue.state -ne "OPEN") {
         throw "Issue #$IssueNumber is not open."
@@ -49,21 +57,28 @@ try {
     Write-Host ""
 
     # --------------------------------------------------
+    # Clone repository
+    # --------------------------------------------------
+
+    Write-Host "Cloning repository..."
+
+    git clone "https://github.com/$Repository.git" $workspacePath
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Git clone failed."
+    }
+
+    Set-Location $workspacePath
+
+    # --------------------------------------------------
     # Determine default branch
     # --------------------------------------------------
 
-    $defaultBranch = gh repo view --json defaultBranchRef --jq ".defaultBranchRef.name"
+    $defaultBranch = gh repo view `
+        --json defaultBranchRef `
+        --jq ".defaultBranchRef.name"
 
     Write-Host "Default branch: $defaultBranch"
-
-    # --------------------------------------------------
-    # Update local default branch
-    # --------------------------------------------------
-
-    Write-Host "Updating $defaultBranch..."
-
-    git checkout $defaultBranch
-    git pull --ff-only origin $defaultBranch
 
     # --------------------------------------------------
     # Create agent branch
@@ -82,10 +97,12 @@ try {
     Write-Host "Marking issue as in progress..."
 
     gh issue edit $IssueNumber `
+        --repo $Repository `
+        --remove-label "status:queued" `
         --add-label "status:in-progress"
 
     # --------------------------------------------------
-    # Build Codex prompt
+    # Codex prompt
     # --------------------------------------------------
 
     $prompt = @"
@@ -124,16 +141,13 @@ Requirements:
     }
 
     # --------------------------------------------------
-    # Run tests independently
+    # Run tests
     # --------------------------------------------------
 
     Write-Host ""
-    Write-Host "========================================"
-    Write-Host "Running test suite"
-    Write-Host "========================================"
-    Write-Host ""
+    Write-Host "Running test suite..."
 
-    python3 -m pytest
+    pytest
 
     if ($LASTEXITCODE -ne 0) {
         throw "Test suite failed with exit code $LASTEXITCODE."
@@ -143,13 +157,10 @@ Requirements:
     # Check changes
     # --------------------------------------------------
 
-    Write-Host ""
-    Write-Host "Checking Git changes..."
-
     $changes = git status --porcelain
 
     if (-not $changes) {
-        throw "Codex completed successfully, but no changes were produced."
+        throw "No changes were produced."
     }
 
     Write-Host ""
@@ -159,9 +170,6 @@ Requirements:
     # --------------------------------------------------
     # Commit
     # --------------------------------------------------
-
-    Write-Host ""
-    Write-Host "Creating commit..."
 
     git add .
 
@@ -185,7 +193,7 @@ Requirements:
     }
 
     # --------------------------------------------------
-    # Create Pull Request
+    # Create PR
     # --------------------------------------------------
 
     Write-Host ""
@@ -209,6 +217,7 @@ Generated by the Codex issue worker.
 "@
 
     $prUrl = gh pr create `
+        --repo $Repository `
         --base $defaultBranch `
         --head $branchName `
         --title $issue.title `
@@ -218,12 +227,10 @@ Generated by the Codex issue worker.
         throw "Pull Request creation failed."
     }
 
-    Write-Host ""
-    Write-Host "Pull Request created:"
-    Write-Host $prUrl
+    Write-Host "Pull Request: $prUrl"
 
     # --------------------------------------------------
-    # Comment on issue
+    # Comment
     # --------------------------------------------------
 
     $comment = @"
@@ -236,17 +243,20 @@ The automated test suite passed successfully.
 Status: Ready for Review.
 "@
 
-    gh issue comment $IssueNumber --body $comment
+    gh issue comment $IssueNumber `
+        --repo $Repository `
+        --body $comment
 
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to comment on GitHub issue."
     }
 
     # --------------------------------------------------
-    # Update labels
+    # Final status
     # --------------------------------------------------
 
     gh issue edit $IssueNumber `
+        --repo $Repository `
         --remove-label "status:in-progress" `
         --add-label "status:ready-for-review"
 
@@ -255,13 +265,13 @@ Status: Ready for Review.
     Write-Host "SUCCESS"
     Write-Host "========================================"
     Write-Host "Issue: #$IssueNumber"
+    Write-Host "Repository: $Repository"
     Write-Host "Branch: $branchName"
-    Write-Host "Pull Request: $prUrl"
-    Write-Host "Log: $logFile"
-    Write-Host ""
+    Write-Host "PR: $prUrl"
 
 }
 catch {
+
     Write-Host ""
     Write-Host "========================================"
     Write-Host "FAILED"
@@ -269,18 +279,37 @@ catch {
     Write-Host $_.Exception.Message
 
     try {
+
         gh issue edit $IssueNumber `
+            --repo $Repository `
             --remove-label "status:in-progress" `
+            --remove-label "status:queued" `
             --add-label "status:failed"
+
     }
     catch {
+
         Write-Host "Failed to update GitHub issue status."
     }
 
     exit 1
 }
 finally {
+
+    Set-Location $PSScriptRoot
+
     Write-Host ""
-    Write-Host "Finished: $(Get-Date)"
+    Write-Host "Cleaning workspace..."
+
+    if (Test-Path $workspacePath) {
+        Remove-Item `
+            -Path $workspacePath `
+            -Recurse `
+            -Force
+    }
+
+    Write-Host "Workspace removed."
+    Write-Host ""
+
     Stop-Transcript
 }
