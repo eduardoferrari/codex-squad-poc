@@ -53,6 +53,17 @@ while ($true) {
         Write-Host "Watcher error:"
         Write-Host $_.Exception.Message
     }
+    finally {
+        try {
+                Remove-GitHubIssueLabel `
+                    -IssueNumber $issueNumber `
+                    -Label "queue" `
+                    -ErrorAction Stop
+            }
+        catch {
+                Write-Warning "Could not remove queue label from issue #$issueNumber : $($_.Exception.Message)"
+        }
+    }
 
     Write-Host ""
     Write-Host "Sleeping for $IntervalSeconds seconds..."
