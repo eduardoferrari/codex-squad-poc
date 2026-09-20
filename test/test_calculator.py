@@ -1,6 +1,6 @@
 import pytest
 
-from src.calculator import add, divide, modulo, multiply, power, subtract
+from src.calculator import add, divide, modulo, multiply, power, square, subtract
 
 
 def test_add():
@@ -41,6 +41,10 @@ def test_power():
 def test_power_with_zero_and_negative_exponent():
     assert power(5, 0) == 1
     assert power(2, -2) == 0.25
+
+
+def test_square():
+    assert square(4) == 16
 
 
 def test_modulo():
