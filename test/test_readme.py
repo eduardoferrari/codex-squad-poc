@@ -5,5 +5,5 @@ def test_readme_ends_with_repository_marker():
     readme = Path(__file__).parents[1] / "README.md"
 
     assert readme.read_text(encoding="utf-8").rstrip().splitlines()[-1] == (
-        "Outro-teste-codex-squad-poc"
+        "Mais-um-teste-codex-squad-poc"
     )
