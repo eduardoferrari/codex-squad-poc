@@ -147,7 +147,7 @@ Requirements:
     Write-Host ""
     Write-Host "Running test suite..."
 
-    pytest
+    python3 -m pytest
 
     if ($LASTEXITCODE -ne 0) {
         throw "Test suite failed with exit code $LASTEXITCODE."
