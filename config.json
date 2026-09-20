@@ -7,6 +7,10 @@
     {
       "name": "codex-squad-poc",
       "repository": "eduardoferrari/codex-squad-poc"
+    },
+    {
+      "name": "efsystems-core",
+      "repository": "eduardoferrari/efsystems-core"
     }
   ]
 }
