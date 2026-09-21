@@ -170,6 +170,40 @@ At the end, provide a concise report containing:
 - Whether validation passed or failed.
 - Any remaining blocking issues.
 
+Completion contract:
+
+The task may only be reported as SUCCESS when all applicable completion
+criteria have been satisfied.
+
+SUCCESS requires:
+
+- The requested functionality or change has been implemented.
+- Relevant repository instructions were followed.
+- Required tests or validation were identified.
+- Required tests or validation were actually executed.
+- Required validation passed.
+- No known blocking issue remains.
+- The final implementation is ready for review.
+
+FAILURE must be reported when:
+
+- The requested implementation is incomplete.
+- Required tests could not be executed.
+- Required tests failed and the problem could not be resolved.
+- A required dependency or tool could not be installed or executed.
+- A blocking implementation problem remains.
+- Repository instructions prevent safe completion.
+
+ERROR must be reported when:
+
+- The agent could not meaningfully execute the task.
+- The execution environment prevented the agent from starting or continuing.
+- The agent could not inspect the repository or issue sufficiently to perform the task.
+
+Never report SUCCESS when required validation was skipped or could not be completed.
+
+---
+
 GitHub Issue:
 
 Number: #$($issue.number)
