@@ -127,7 +127,7 @@ while ($true) {
             --label "status:queued" `
             --json number,title `
             --limit 10 |
-            ConvertFrom-Json
+        ConvertFrom-Json
 
         foreach ($issue in $issues) {
 
@@ -154,87 +154,87 @@ while ($true) {
     # --------------------------------------------------
 
     $issuesToProcess = $queuedIssues |
-        Select-Object -First $availableSlots
+    Select-Object -First $availableSlots
 
-foreach ($issue in $issuesToProcess) {
-
-    Write-Host ""
-    Write-Host "Reserving issue:"
-    Write-Host "Repository: $($issue.Repository)"
-    Write-Host "Issue: #$($issue.IssueNumber)"
-
-    try {
-
-        # --------------------------------------------------
-        # Reserve issue
-        # --------------------------------------------------
-
-        gh issue edit $issue.IssueNumber `
-            --repo $issue.Repository `
-            --remove-label "status:queued" `
-            --add-label "status:in-progress"
-
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to reserve issue."
-        }
-
-        Write-Host "Issue reserved."
-
-        # --------------------------------------------------
-        # Start worker
-        # --------------------------------------------------
-
-        $arguments = @(
-            "-NoProfile"
-            "-ExecutionPolicy"
-            "Bypass"
-            "-File"
-            "`"$PSScriptRoot\run-issue.ps1`""
-            "-Repository"
-            "`"$($issue.Repository)`""
-            "-IssueNumber"
-            "$($issue.IssueNumber)"
-            "-WorkspaceRoot"
-            "`"$workspaceRoot`""
-            "-LogRoot"
-            "`"$logRoot`""
-        )
-
-        $process = Start-Process `
-            -FilePath "pwsh.exe" `
-            -ArgumentList $arguments `
-            -PassThru
-
-        $workers += [PSCustomObject]@{
-            Process      = $process
-            Repository   = $issue.Repository
-            IssueNumber  = $issue.IssueNumber
-            Title        = $issue.Title
-            StartedAt    = Get-Date
-        }
-
-        Write-Host "Worker PID: $($process.Id)"
-    }
-    catch {
+    foreach ($issue in $issuesToProcess) {
 
         Write-Host ""
-        Write-Host "Failed to start worker:"
-        Write-Host $_.Exception.Message
+        Write-Host "Reserving issue:"
+        Write-Host "Repository: $($issue.Repository)"
+        Write-Host "Issue: #$($issue.IssueNumber)"
 
         try {
 
+            # --------------------------------------------------
+            # Reserve issue
+            # --------------------------------------------------
+
             gh issue edit $issue.IssueNumber `
                 --repo $issue.Repository `
-                --remove-label "status:in-progress" `
-                --add-label "status:queued"
+                --remove-label "status:queued" `
+                --add-label "status:in-progress"
 
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to reserve issue."
+            }
+
+            Write-Host "Issue reserved."
+        
+            # --------------------------------------------------
+            # Start worker
+            # --------------------------------------------------
+
+            $arguments = @(
+                "-NoProfile"
+                "-ExecutionPolicy"
+                "Bypass"
+                "-File"
+                "`"$PSScriptRoot\run-issue.ps1`""
+                "-Repository"
+                "`"$($issue.Repository)`""
+                "-IssueNumber"
+                "$($issue.IssueNumber)"
+                "-WorkspaceRoot"
+                "`"$workspaceRoot`""
+                "-LogRoot"
+                "`"$logRoot`""
+            )
+
+            $process = Start-Process `
+                -FilePath "pwsh.exe" `
+                -ArgumentList $arguments `
+                -PassThru
+
+            $workers += [PSCustomObject]@{
+                Process     = $process
+                Repository  = $issue.Repository
+                IssueNumber = $issue.IssueNumber
+                Title       = $issue.Title
+                StartedAt   = Get-Date
+            }
+
+            Write-Host "Worker PID: $($process.Id)"
         }
         catch {
 
-            Write-Host "Failed to restore queued status."
+            Write-Host ""
+            Write-Host "Failed to start worker:"
+            Write-Host $_.Exception.Message
+
+            try {
+
+                gh issue edit $issue.IssueNumber `
+                    --repo $issue.Repository `
+                    --remove-label "status:in-progress" `
+                    --add-label "status:queued"
+
+            }
+            catch {
+
+                Write-Host "Failed to restore queued status."
+            }
         }
     }
-}
 
     Start-Sleep -Seconds $pollIntervalSeconds
 }

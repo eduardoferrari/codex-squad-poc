@@ -24,6 +24,8 @@ $logFile = Join-Path $logDirectory "issue-$IssueNumber-$timestamp.log"
 $workspaceName = "$normalizedRepoName-issue-$IssueNumber-$timestamp"
 $workspacePath = Join-Path $WorkspaceRoot $workspaceName
 
+$resultFile = Join-Path $workspacePath ".agent-result.json"
+
 New-Item -ItemType Directory -Force -Path $workspacePath | Out-Null
 New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
 
@@ -90,6 +92,14 @@ try {
 
     git checkout -b $branchName
 
+    # --------------------------------------------------
+    # Prepare result file
+    # --------------------------------------------------
+    
+    if (Test-Path $resultFile) {
+        Remove-Item $resultFile -Force
+    }
+    
     # --------------------------------------------------
     # Codex prompt
     # --------------------------------------------------
@@ -226,8 +236,100 @@ $($issue.body)
 
     codex exec $prompt
 
-    if ($LASTEXITCODE -ne 0) {
-        throw "Codex execution failed with exit code $LASTEXITCODE."
+    # --------------------------------------------------
+    # Get the execution results
+    # --------------------------------------------------
+    
+    $agentResult = $null
+
+    if (Test-Path $resultFile) {
+        try {
+            $resultContent = Get-Content $resultFile -Raw
+            $agentResult = $resultContent | ConvertFrom-Json
+        }
+        catch {
+            Write-Host "[ERROR] Failed to parse .agent-result.json: $($_.Exception.Message)"
+        }
+    }
+    else {
+        Write-Host "[ERROR] .agent-result.json was not created by Codex."
+    }
+    
+    $workerStatus = "ERROR"
+
+    if ($null -eq $agentResult) {
+        $workerStatus = "ERROR"
+    }
+    elseif ($agentResult.status -notin @("SUCCESS", "FAILURE", "ERROR")) {
+        Write-Host "[ERROR] Invalid agent status: $($agentResult.status)"
+        $workerStatus = "ERROR"
+    }
+    else {
+        $workerStatus = $agentResult.status
+    }
+    
+    if ($workerStatus -eq "SUCCESS") {
+
+        if ($agentResult.validation.required -and
+            (-not $agentResult.validation.executed)) {
+
+            Write-Host "[ERROR] Agent reported SUCCESS but required validation was not executed."
+            $workerStatus = "ERROR"
+        }
+
+        if ($agentResult.validation.required -and
+            (-not $agentResult.validation.passed)) {
+
+            Write-Host "[ERROR] Agent reported SUCCESS but required validation did not pass."
+            $workerStatus = "ERROR"
+        }
+    }
+    
+    Write-Host "[Codex] Exit code: $codexExitCode"
+    Write-Host "[Agent] Status: $workerStatus"
+
+    if ($null -ne $agentResult) {
+        Write-Host "[Agent] Summary: $($agentResult.summary)"
+
+        Write-Host "[Agent] Skills:"
+        foreach ($skill in $agentResult.skills) {
+            Write-Host "  - $skill"
+        }
+
+        Write-Host "[Agent] Validation required: $($agentResult.validation.required)"
+        Write-Host "[Agent] Validation executed: $($agentResult.validation.executed)"
+        Write-Host "[Agent] Validation passed: $($agentResult.validation.passed)"
+
+        if ($agentResult.validation.commands.Count -gt 0) {
+            Write-Host "[Agent] Validation commands:"
+
+            foreach ($command in $agentResult.validation.commands) {
+                Write-Host "  - $command"
+            }
+        }
+
+        if ($agentResult.blockingIssues.Count -gt 0) {
+            Write-Host "[Agent] Blocking issues:"
+
+            foreach ($issue in $agentResult.blockingIssues) {
+                Write-Host "  - $issue"
+            }
+        }
+    }
+    
+    switch ($workerStatus) {
+
+        "SUCCESS" {
+            Write-Host "[SUCCESS] Issue completed successfully."
+        }
+
+        "FAILURE" {
+            Write-Host "[FAILURE] Codex completed execution but the issue was not successfully completed."
+        }
+
+        "ERROR" {
+            Write-Host "[ERROR] Could not obtain a valid result from Codex."
+        }
     }
 
     # --------------------------------------------------
