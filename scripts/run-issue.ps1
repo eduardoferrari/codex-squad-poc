@@ -212,6 +212,52 @@ ERROR must be reported when:
 
 Never report SUCCESS when required validation was skipped or could not be completed.
 
+Structured result:
+
+Before finishing the task, create a file named:
+
+`.agent-result.json`
+
+The file must contain valid JSON using this structure:
+
+{
+  "status": "SUCCESS | FAILURE | ERROR",
+  "summary": "string",
+  "skills": ["string"],
+  "validation": {
+    "required": true,
+    "executed": true,
+    "passed": true,
+    "commands": ["string"]
+  },
+  "filesChanged": ["string"],
+  "blockingIssues": ["string"]
+}
+
+Rules:
+
+- status must be exactly SUCCESS, FAILURE, or ERROR.
+- Use SUCCESS only when all completion criteria are satisfied.
+- Use FAILURE when the task was attempted but could not be completed.
+- Use ERROR when meaningful task execution could not occur.
+- validation.executed must be true only when the required validation was actually executed.
+- validation.passed must be true only when the required validation actually passed.
+- commands must contain the validation commands that were actually executed.
+- filesChanged must contain the files actually modified by the task.
+- blockingIssues must contain all known issues preventing successful completion.
+- Do not invent test results, commands, files, or validation results.
+- The JSON must be valid and machine-readable.
+- Always create `.agent-result.json` before finishing.
+
+IMPORTANT:
+
+`.agent-result.json` is an execution artifact.
+
+- Do not commit it.
+- Do not include it in the pull request.
+- Do not modify it as part of the application implementation.
+
+
 ---
 
 GitHub Issue:
