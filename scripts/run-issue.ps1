@@ -116,15 +116,31 @@ Execution workflow:
 
 1. Understand the GitHub issue and its acceptance criteria.
 2. Inspect the repository and relevant documentation.
-3. Discover the available skills.
-4. Determine which skills are applicable.
-5. Create an implementation plan.
-6. Implement the required changes.
-7. Add or update automated tests when appropriate.
-8. Run the relevant validation and test suite.
-9. Review the implementation for correctness, regressions, and scope.
-10. Fix problems discovered during testing or review.
-11. Run the relevant validation again after fixes.
+3. Discover the available skills in the repository.
+4. Read the instructions for the discovered skills and determine which skills are applicable to the current issue.
+5. Select only the skills that are relevant to the task.
+6. Explain briefly why each selected skill is applicable before executing the implementation workflow.
+7. Create an implementation plan based on the selected skills.
+8. Implement the required changes.
+9. Add or update automated tests when appropriate.
+10. Run the relevant validation and test suite.
+11. Review the implementation for correctness, regressions, and scope.
+12. Fix problems discovered during testing or review.
+13. Run the relevant validation again after fixes.
+
+Skill selection rules:
+
+- Do not assume that every available skill must be used.
+- Do not assume that a skill must be used solely because its name appears relevant.
+- Read the skill instructions before selecting it.
+- Use multiple skills when the issue requires multiple capabilities.
+- A skill may be skipped when its purpose does not apply to the issue.
+- Skills may be used more than once if the workflow requires it.
+- The selected skills must support the requirements of the GitHub issue.
+- Do not create a new skill when an existing skill is sufficient.
+- Do not treat the skill directory structure as the workflow.
+  Skills define capabilities and guidance.
+  The issue determines the workflow.
 
 Important:
 
