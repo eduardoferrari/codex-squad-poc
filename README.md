@@ -1,41 +1,28 @@
 # Codex Squad POC
 
-Small project used to validate autonomous Codex workflows.
+Small .NET console application used to validate autonomous Codex workflows.
 
 ## Requirements
 
-- Python 3.8 or newer
-
-## Local setup
-
-From the repository root, create and activate a virtual environment:
-
-```powershell
-python3 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
-
-Install the development dependency used by the project:
-
-```powershell
-python3 -m pip install pytest
-```
+- .NET SDK 10.0 or newer
 
 ## Run the application
 
-The project exposes its calculator functions as a Python module. Run this
-example from the repository root:
+From the repository root:
 
-```powershell
-python3 -c "from src.calculator import add; print(add(2, 3))"
+```bash
+dotnet run --project src/CodexSquadPoc.csproj
 ```
 
-To run the automated test suite instead, use:
+The sample application prints the result of a calculator operation.
 
-```powershell
-python3 -m pytest
+## Run the tests
+
+Run the complete .NET test suite from the repository root:
+
+```bash
+dotnet test
 ```
 
-Ferrari auto-test-codex-squad-poc
-Outro-teste-codex-squad-poc
-Mais-um-teste-codex-squad-poc
+The former Python implementation and pytest tests are retained under `legacy/`
+for reference only. They are not part of the application or test workflow.

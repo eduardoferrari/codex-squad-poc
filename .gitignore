@@ -1,3 +1,6 @@
 /logs
 /.pytest_cache
-**/__pycache__
+**/__pycache__/
+**/bin/
+**/obj/
+.vs/
